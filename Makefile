@@ -6,3 +6,7 @@ clean:
 
 build:
 	go build
+dirs:
+	mkdir -p data/1
+run:
+	${GOPATH}/bin/hml
