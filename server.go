@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	fsm "hml/fsm"
 	pb "hml/protos/gen/protos"
+	"hml/storage"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Jille/raft-grpc-leader-rpc/leaderhealth"
 	transport "github.com/Jille/raft-grpc-transport"
@@ -32,6 +36,28 @@ func newServer() *leaseServer {
 }
 
 func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRequest) (*pb.CreateLeaseResponse, error) {
+	// TODO: apply log here s.raft.Apply()
+	payload := fsm.OperationWrapper{
+		Type: fsm.SET,
+		Payload: storage.CreateLeaseModel{
+			ClientID:             request.ClientId,
+			Key:                  request.Key,
+			Namespace:            request.Namespace,
+			ExpiresAtEpochMillis: request.ExpiresAt.Seconds,
+		},
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		// TODO: make this better
+		return &pb.CreateLeaseResponse{}, err
+	}
+
+	applyFuture := s.raft.Apply(data, 500*time.Millisecond)
+	if err := applyFuture.Error(); err != nil {
+		// TODO: make this better
+		return &pb.CreateLeaseResponse{}, err
+	}
 	return &pb.CreateLeaseResponse{ClientId: request.ClientId, Key: request.Key, Namespace: request.Namespace}, nil
 }
 
@@ -61,7 +87,10 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	lh := &LeaseHolder{}
+	// creating base directory if it doesn't exist
+	createBaseDir(*raftID)
+
+	lh := newFSM()
 
 	r, tm, err := newRaft(ctx, *raftID, *myAddr, lh)
 	if err != nil {
@@ -80,6 +109,41 @@ func main() {
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func newFSM() raft.FSM {
+	fsmStore, err := newFSMStore(*raftID)
+	if err != nil {
+		log.Fatalf("failed to initialize fsm store: %v", err)
+	}
+
+	return &fsm.LeaseHolderFSM{
+		DB: &storage.DB{
+			Store: *fsmStore,
+		},
+	}
+}
+
+func createBaseDir(myID string) {
+	baseDir := filepath.Join(*raftDir, myID)
+	err := os.MkdirAll(baseDir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error in creating base directory: %v", err)
+	}
+}
+
+func newFSMStore(myID string) (*boltdb.BoltStore, error) {
+	baseDir := filepath.Join(*raftDir, myID, "fsm")
+	err := os.MkdirAll(baseDir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error in creating fsm directory: %v", err)
+	}
+	fsmStore, err := boltdb.NewBoltStore(filepath.Join(baseDir, "appdata.dat"))
+	if err != nil {
+		return fsmStore, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, "appdata.dat"), err)
+	}
+
+	return fsmStore, nil
 }
 
 func newRaft(ctx context.Context, myID, myAddress string, fsm raft.FSM) (*raft.Raft, *transport.Manager, error) {

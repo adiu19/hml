@@ -9,7 +9,23 @@ import "google/protobuf/timestamp.proto";
 
 
 service LeaseService {
+    rpc GetLease(GetLeaseRequest) returns (GetLeaseResponse) {}
     rpc CreateLease(CreateLeaseRequest) returns (CreateLeaseResponse) {}
+}
+
+message GetLeaseRequest {
+    string client_id = 1;
+    string key = 2;
+    string namespace = 3;
+}
+
+message GetLeaseResponse {
+    string id = 1;
+    string client_id = 2;
+    string key = 3;
+    string namespace = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp expires_at = 6;
 }
 
 message CreateLeaseRequest {
