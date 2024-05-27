@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"hml/cleaner"
 	fsm "hml/fsm"
 	pb "hml/protos/gen/protos"
 	"hml/storage"
@@ -23,6 +24,7 @@ import (
 	boltdb "github.com/hashicorp/raft-boltdb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type leaseServer struct {
@@ -64,12 +66,40 @@ func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRe
 }
 
 func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest) (*pb.GetLeaseResponse, error) {
-	xyz, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
+	lease, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
 	if err != nil {
 		return &pb.GetLeaseResponse{}, err
 	}
 
-	return &pb.GetLeaseResponse{ClientId: xyz.ClientID, Key: xyz.Key, Namespace: xyz.Namespace, Id: fmt.Sprint(xyz.FencingToken)}, nil
+	return &pb.GetLeaseResponse{
+		ClientId:     lease.ClientID,
+		Key:          lease.Key,
+		Namespace:    lease.Namespace,
+		FencingToken: fmt.Sprint(lease.FencingToken),
+	}, nil
+}
+
+func (s *leaseServer) GetAllLeases(ctx context.Context, request *emptypb.Empty) (*pb.GetAllLeasesResponse, error) {
+	leases, err := s.fsm.DBAccessLayer.GetAll()
+	if err != nil {
+		return &pb.GetAllLeasesResponse{}, err
+	}
+
+	var mappedLeases []*pb.GetLeaseResponse
+	for _, lease := range leases {
+		t := pb.GetLeaseResponse{
+			ClientId:     lease.ClientID,
+			Key:          lease.Key,
+			Namespace:    lease.Namespace,
+			FencingToken: fmt.Sprint(lease.FencingToken),
+		}
+
+		mappedLeases = append(mappedLeases, &t)
+	}
+
+	return &pb.GetAllLeasesResponse{
+		Leases: mappedLeases,
+	}, nil
 }
 
 var (
@@ -116,6 +146,7 @@ func main() {
 	raftadmin.Register(s, r)
 	reflection.Register(s)
 
+	cleaner.Run(ctx, r)
 	log.Printf("gRPC server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)

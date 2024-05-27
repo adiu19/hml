@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,8 +20,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	LeaseService_GetLease_FullMethodName    = "/leases.LeaseService/GetLease"
-	LeaseService_CreateLease_FullMethodName = "/leases.LeaseService/CreateLease"
+	LeaseService_GetLease_FullMethodName     = "/leases.LeaseService/GetLease"
+	LeaseService_GetAllLeases_FullMethodName = "/leases.LeaseService/GetAllLeases"
+	LeaseService_CreateLease_FullMethodName  = "/leases.LeaseService/CreateLease"
 )
 
 // LeaseServiceClient is the client API for LeaseService service.
@@ -28,6 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LeaseServiceClient interface {
 	GetLease(ctx context.Context, in *GetLeaseRequest, opts ...grpc.CallOption) (*GetLeaseResponse, error)
+	GetAllLeases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAllLeasesResponse, error)
 	CreateLease(ctx context.Context, in *CreateLeaseRequest, opts ...grpc.CallOption) (*CreateLeaseResponse, error)
 }
 
@@ -48,6 +51,15 @@ func (c *leaseServiceClient) GetLease(ctx context.Context, in *GetLeaseRequest, 
 	return out, nil
 }
 
+func (c *leaseServiceClient) GetAllLeases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAllLeasesResponse, error) {
+	out := new(GetAllLeasesResponse)
+	err := c.cc.Invoke(ctx, LeaseService_GetAllLeases_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *leaseServiceClient) CreateLease(ctx context.Context, in *CreateLeaseRequest, opts ...grpc.CallOption) (*CreateLeaseResponse, error) {
 	out := new(CreateLeaseResponse)
 	err := c.cc.Invoke(ctx, LeaseService_CreateLease_FullMethodName, in, out, opts...)
@@ -62,6 +74,7 @@ func (c *leaseServiceClient) CreateLease(ctx context.Context, in *CreateLeaseReq
 // for forward compatibility
 type LeaseServiceServer interface {
 	GetLease(context.Context, *GetLeaseRequest) (*GetLeaseResponse, error)
+	GetAllLeases(context.Context, *emptypb.Empty) (*GetAllLeasesResponse, error)
 	CreateLease(context.Context, *CreateLeaseRequest) (*CreateLeaseResponse, error)
 	mustEmbedUnimplementedLeaseServiceServer()
 }
@@ -72,6 +85,9 @@ type UnimplementedLeaseServiceServer struct {
 
 func (UnimplementedLeaseServiceServer) GetLease(context.Context, *GetLeaseRequest) (*GetLeaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLease not implemented")
+}
+func (UnimplementedLeaseServiceServer) GetAllLeases(context.Context, *emptypb.Empty) (*GetAllLeasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAllLeases not implemented")
 }
 func (UnimplementedLeaseServiceServer) CreateLease(context.Context, *CreateLeaseRequest) (*CreateLeaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateLease not implemented")
@@ -107,6 +123,24 @@ func _LeaseService_GetLease_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LeaseService_GetAllLeases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LeaseServiceServer).GetAllLeases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LeaseService_GetAllLeases_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LeaseServiceServer).GetAllLeases(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _LeaseService_CreateLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateLeaseRequest)
 	if err := dec(in); err != nil {
@@ -135,6 +169,10 @@ var LeaseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLease",
 			Handler:    _LeaseService_GetLease_Handler,
+		},
+		{
+			MethodName: "GetAllLeases",
+			Handler:    _LeaseService_GetAllLeases_Handler,
 		},
 		{
 			MethodName: "CreateLease",

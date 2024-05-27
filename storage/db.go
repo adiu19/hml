@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/boltdb/bolt"
@@ -32,6 +33,40 @@ func (dal *DBAccessLayer) GetObject(request *GetLeaseModel) (*LeaseDBModel, erro
 		return nil, err
 	}
 	return &obj, nil
+}
+
+// GetAll returns a key value pair
+func (dal *DBAccessLayer) GetAll() ([]*LeaseDBModel, error) {
+	var data [][]byte
+	err := dal.DB.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte("conf"))
+		c := bucket.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			data = append(data, v)
+			fmt.Printf("key=%s, value=%s\n", k, v)
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("failed to fetch data %v", err)
+		return nil, err
+	}
+
+	var response []*LeaseDBModel
+
+	for _, byteArray := range data {
+		var leaseObj LeaseDBModel
+		if err := json.Unmarshal(byteArray, &leaseObj); err != nil {
+			fmt.Println("Error unmarshalling byte array:", err)
+			return nil, err
+		}
+
+		response = append(response, &leaseObj)
+	}
+
+	return response, nil
 }
 
 // SetObject sets a key value pair
