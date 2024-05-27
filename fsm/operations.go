@@ -5,7 +5,6 @@ import (
 	"fmt"
 	storage "hml/storage"
 	"io"
-	"log"
 	"os"
 
 	"github.com/hashicorp/raft"
@@ -40,7 +39,13 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 		opType := operationPayload.Type
 		switch opType {
 		case SET:
-			req := operationPayload.Payload.(storage.CreateLeaseModel)
+			operationPayload.Payload = &storage.CreateLeaseModel{}
+			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				return nil
+			}
+
+			req := operationPayload.Payload.(*storage.CreateLeaseModel)
 			err := f.DB.SetObject(req)
 			if err != nil {
 				// TODO: add logs
@@ -53,21 +58,6 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 			return &ResponseModel{
 				Error: nil,
 				Data:  nil,
-			}
-		case GET:
-			req := operationPayload.Payload.(storage.GetLeaseModel)
-			obj, err := f.DB.GetObject(req)
-			if err != nil {
-				log.Fatalf("fetching db value  errored out %v", err)
-				return &ResponseModel{
-					Error: err,
-					Data:  nil,
-				}
-			}
-
-			return &ResponseModel{
-				Error: nil,
-				Data:  obj,
 			}
 		}
 	}

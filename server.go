@@ -28,6 +28,7 @@ type leaseServer struct {
 	pb.UnimplementedLeaseServiceServer
 	mu   sync.Mutex
 	raft *raft.Raft
+	fsm  *fsm.LeaseHolderFSM
 }
 
 func newServer() *leaseServer {
@@ -59,6 +60,15 @@ func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRe
 		return &pb.CreateLeaseResponse{}, err
 	}
 	return &pb.CreateLeaseResponse{ClientId: request.ClientId, Key: request.Key, Namespace: request.Namespace}, nil
+}
+
+func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest) (*pb.GetLeaseResponse, error) {
+	xyz, err := s.fsm.DB.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
+	if err != nil {
+		return &pb.GetLeaseResponse{}, err
+	}
+
+	return &pb.GetLeaseResponse{ClientId: xyz.ClientID, Key: xyz.Key, Namespace: xyz.Namespace}, nil
 }
 
 var (
@@ -98,7 +108,7 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterLeaseServiceServer(s, &leaseServer{raft: r})
+	pb.RegisterLeaseServiceServer(s, &leaseServer{raft: r, fsm: lh})
 
 	tm.Register(s)
 	leaderhealth.Setup(r, s, []string{"Example"})
@@ -111,7 +121,7 @@ func main() {
 	}
 }
 
-func newFSM() raft.FSM {
+func newFSM() *fsm.LeaseHolderFSM {
 	fsmStore, err := newFSMStore(*raftID)
 	if err != nil {
 		log.Fatalf("failed to initialize fsm store: %v", err)

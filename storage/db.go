@@ -6,11 +6,11 @@ import (
 )
 
 // GetObject returns a key value pair
-func (db *DB) GetObject(request GetLeaseModel) (*LeaseDBModel, error) {
+func (db *DB) GetObject(request *GetLeaseModel) (*LeaseDBModel, error) {
 	key := request.ClientID + "_" + request.Namespace + "_" + request.Key
 	value, err := db.Store.Get([]byte(key))
 	if err != nil {
-		log.Fatalf("fetching db value for key %v errored out %v", key, err)
+		log.Printf("fetching db value for key %v errored out %v", key, err)
 		return nil, err
 	}
 
@@ -24,7 +24,7 @@ func (db *DB) GetObject(request GetLeaseModel) (*LeaseDBModel, error) {
 }
 
 // SetObject sets a key value pair
-func (db *DB) SetObject(request CreateLeaseModel) error {
+func (db *DB) SetObject(request *CreateLeaseModel) error {
 	key := request.ClientID + "_" + request.Namespace + "_" + request.Key
 	objBytes, err := json.Marshal(request)
 	if err != nil {
