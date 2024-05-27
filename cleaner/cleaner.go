@@ -17,6 +17,7 @@ func Run(ctx context.Context, r *raft.Raft) {
 	go func() {
 		for range ticker.C {
 			// fetch state of current node
+			// TODO: handle error
 			state, _ := raftadmin.Get(r).State(ctx, &proto.StateRequest{})
 			if raft.RaftState(state.GetState()) == raft.Leader {
 				log.Println("leader node running bg task")
