@@ -46,7 +46,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 			}
 
 			req := operationPayload.Payload.(*storage.CreateLeaseModel)
-			err := f.DB.SetObject(req)
+			err := f.DBAccessLayer.SetObject(req)
 			if err != nil {
 				// TODO: add logs
 				return &ResponseModel{

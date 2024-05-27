@@ -18,6 +18,7 @@ import (
 	"github.com/Jille/raft-grpc-leader-rpc/leaderhealth"
 	transport "github.com/Jille/raft-grpc-transport"
 	"github.com/Jille/raftadmin"
+	bolt "github.com/boltdb/bolt"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb"
 	"google.golang.org/grpc"
@@ -63,12 +64,12 @@ func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRe
 }
 
 func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest) (*pb.GetLeaseResponse, error) {
-	xyz, err := s.fsm.DB.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
+	xyz, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
 	if err != nil {
 		return &pb.GetLeaseResponse{}, err
 	}
 
-	return &pb.GetLeaseResponse{ClientId: xyz.ClientID, Key: xyz.Key, Namespace: xyz.Namespace}, nil
+	return &pb.GetLeaseResponse{ClientId: xyz.ClientID, Key: xyz.Key, Namespace: xyz.Namespace, Id: fmt.Sprint(xyz.FencingToken)}, nil
 }
 
 var (
@@ -128,8 +129,8 @@ func newFSM() *fsm.LeaseHolderFSM {
 	}
 
 	return &fsm.LeaseHolderFSM{
-		DB: &storage.DB{
-			Store: *fsmStore,
+		DBAccessLayer: &storage.DBAccessLayer{
+			DB: fsmStore,
 		},
 	}
 }
@@ -142,13 +143,13 @@ func createBaseDir(myID string) {
 	}
 }
 
-func newFSMStore(myID string) (*boltdb.BoltStore, error) {
+func newFSMStore(myID string) (*bolt.DB, error) {
 	baseDir := filepath.Join(*raftDir, myID, "fsm")
 	err := os.MkdirAll(baseDir, os.ModePerm)
 	if err != nil {
 		log.Fatalf("error in creating fsm directory: %v", err)
 	}
-	fsmStore, err := boltdb.NewBoltStore(filepath.Join(baseDir, "appdata.dat"))
+	fsmStore, err := bolt.Open(filepath.Join(baseDir, "appdata.dat"), 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return fsmStore, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, "appdata.dat"), err)
 	}

@@ -1,12 +1,10 @@
 package fsm
 
-import (
-	storage "hml/storage"
-)
+import "hml/storage"
 
 // LeaseHolderFSM is the fsm wrapper on top of a persistent key-value store
 type LeaseHolderFSM struct {
-	DB *storage.DB
+	DBAccessLayer *storage.DBAccessLayer
 }
 
 type snapshot struct{}

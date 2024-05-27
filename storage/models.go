@@ -1,12 +1,10 @@
 package storage
 
-import (
-	boltdb "github.com/hashicorp/raft-boltdb"
-)
+import "github.com/boltdb/bolt"
 
-// DB is a wrapper on top of a key-value store
-type DB struct {
-	Store boltdb.BoltStore
+// DBAccessLayer is a type alias to allow definitions
+type DBAccessLayer struct {
+	DB *bolt.DB
 }
 
 // TODO : add hierarchy here, so that base struct has client id, key, and namespace
@@ -21,9 +19,10 @@ type CreateLeaseModel struct {
 
 // GetLeaseModel is the payload we receive from the raft cluster for a get request
 type GetLeaseModel struct {
-	ClientID  string
-	Key       string
-	Namespace string
+	FencingToken int64
+	ClientID     string
+	Key          string
+	Namespace    string
 }
 
 // LeaseDBModel represents schema for Lease in DB
