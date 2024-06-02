@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	storage "hml/storage"
 	"io"
@@ -18,6 +19,7 @@ const (
 	GET OperationType = iota
 	SET
 	UPDATE
+	DELETE
 )
 
 // OperationWrapper is payload sent by system when calling raft.Apply(cmd []byte, timeout time.Duration)
@@ -33,7 +35,10 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 		var operationPayload OperationWrapper
 		if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
-			return nil
+			return &ResponseModel{
+				Error: err,
+				Data:  nil,
+			}
 		}
 
 		opType := operationPayload.Type
@@ -42,7 +47,10 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 			operationPayload.Payload = &storage.CreateLeaseModel{}
 			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
-				return nil
+				return &ResponseModel{
+					Error: err,
+					Data:  nil,
+				}
 			}
 
 			req := operationPayload.Payload.(*storage.CreateLeaseModel)
@@ -59,6 +67,25 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 				Error: nil,
 				Data:  nil,
 			}
+		case DELETE:
+			operationPayload.Payload = &storage.GetLeaseModel{}
+			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				return nil
+			}
+
+			req := operationPayload.Payload.(*storage.GetLeaseModel)
+			err := f.DBAccessLayer.DeleteObject(req)
+			if err != nil {
+				return &ResponseModel{
+					Error: err,
+					Data:  nil,
+				}
+			}
+			return &ResponseModel{
+				Error: nil,
+				Data:  nil,
+			}
 		}
 	}
 
@@ -66,7 +93,43 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 }
 
 // Restore needs to be implemented
-func (f *LeaseHolderFSM) Restore(r io.ReadCloser) error {
+func (f *LeaseHolderFSM) Restore(rc io.ReadCloser) error {
+
+	// clean slate
+	f.DBAccessLayer.DeleteAll()
+
+	decoder := json.NewDecoder(rc)
+	for decoder.More() {
+		var operationPayload OperationWrapper
+		err := decoder.Decode(&operationPayload)
+		if err != nil {
+			return errors.New("unable to decode payload for raft respore")
+		}
+
+		opType := operationPayload.Type
+		switch opType {
+		case SET:
+			operationPayload.Payload = &storage.CreateLeaseModel{}
+			if err := decoder.Decode(&operationPayload); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				return err
+			}
+
+			req := operationPayload.Payload.(*storage.CreateLeaseModel)
+			err := f.DBAccessLayer.SetObject(req)
+			return err
+		case DELETE:
+			operationPayload.Payload = &storage.GetLeaseModel{}
+			if err := decoder.Decode(&operationPayload); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				return err
+			}
+
+			req := operationPayload.Payload.(*storage.GetLeaseModel)
+			err := f.DBAccessLayer.DeleteObject(req)
+			return err
+		}
+	}
 	return nil
 }
 

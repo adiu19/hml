@@ -9,6 +9,7 @@ import (
 	fsm "hml/fsm"
 	pb "hml/protos/gen/protos"
 	"hml/storage"
+	utils "hml/utils"
 	"log"
 	"net"
 	"os"
@@ -23,8 +24,11 @@ import (
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type leaseServer struct {
@@ -40,7 +44,6 @@ func newServer() *leaseServer {
 }
 
 func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRequest) (*pb.CreateLeaseResponse, error) {
-	// TODO: apply log here s.raft.Apply()
 	payload := fsm.OperationWrapper{
 		Type: fsm.SET,
 		Payload: storage.CreateLeaseModel{
@@ -48,41 +51,55 @@ func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRe
 			Key:                  request.Key,
 			Namespace:            request.Namespace,
 			ExpiresAtEpochMillis: request.ExpiresAt.Seconds,
+			CreatedAtEpochMillis: time.Now().UnixMilli(),
 		},
 	}
 
 	data, err := json.Marshal(payload)
 	if err != nil {
-		// TODO: make this better
-		return &pb.CreateLeaseResponse{}, err
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, err.Error())
 	}
 
 	applyFuture := s.raft.Apply(data, 500*time.Millisecond)
 	if err := applyFuture.Error(); err != nil {
 		// TODO: make this better
-		return &pb.CreateLeaseResponse{}, err
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, err.Error())
+	}
+
+	response := applyFuture.Response().(*fsm.ResponseModel)
+	if response.Error != nil {
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, response.Error.Error())
 	}
 	return &pb.CreateLeaseResponse{ClientId: request.ClientId, Key: request.Key, Namespace: request.Namespace}, nil
 }
 
 func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest) (*pb.GetLeaseResponse, error) {
-	lease, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{ClientID: request.ClientId, Key: request.Key, Namespace: request.Namespace})
+	lease, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{Key: request.Key, Namespace: request.Namespace})
 	if err != nil {
-		return &pb.GetLeaseResponse{}, err
+		return &pb.GetLeaseResponse{}, status.Error(codes.Internal, err.Error())
 	}
 
-	return &pb.GetLeaseResponse{
-		ClientId:     lease.ClientID,
-		Key:          lease.Key,
-		Namespace:    lease.Namespace,
-		FencingToken: fmt.Sprint(lease.FencingToken),
-	}, nil
+	if lease == nil {
+		return nil, status.Error(codes.NotFound, "lease not found")
+	}
+
+	return utils.MapObjectToGetLeaseResponse(lease), nil
+	// return &pb.GetLeaseResponse{
+	// 	ClientId:     lease.ClientID,
+	// 	Key:          lease.Key,
+	// 	Namespace:    lease.Namespace,
+	// 	FencingToken: fmt.Sprint(lease.FencingToken),
+	// 	CreatedAt: &timestamppb.Timestamp{
+	// 		Seconds: lease.CreatedAtEpochMillis,
+	// 		Nanos:   0,
+	// 	},
+	// }, nil
 }
 
 func (s *leaseServer) GetAllLeases(ctx context.Context, request *emptypb.Empty) (*pb.GetAllLeasesResponse, error) {
 	leases, err := s.fsm.DBAccessLayer.GetAll()
 	if err != nil {
-		return &pb.GetAllLeasesResponse{}, err
+		return &pb.GetAllLeasesResponse{}, status.Error(codes.Internal, err.Error())
 	}
 
 	var mappedLeases []*pb.GetLeaseResponse
@@ -92,6 +109,10 @@ func (s *leaseServer) GetAllLeases(ctx context.Context, request *emptypb.Empty) 
 			Key:          lease.Key,
 			Namespace:    lease.Namespace,
 			FencingToken: fmt.Sprint(lease.FencingToken),
+			CreatedAt: &timestamppb.Timestamp{
+				Seconds: lease.CreatedAtEpochMillis,
+				Nanos:   0,
+			},
 		}
 
 		mappedLeases = append(mappedLeases, &t)
@@ -133,7 +154,7 @@ func main() {
 
 	lh := newFSM()
 
-	r, tm, err := newRaft(ctx, *raftID, *myAddr, lh)
+	r, tm, err := newRaft(*raftID, *myAddr, lh)
 	if err != nil {
 		log.Fatalf("failed to start raft: %v", err)
 	}
@@ -146,7 +167,7 @@ func main() {
 	raftadmin.Register(s, r)
 	reflection.Register(s)
 
-	cleaner.Run(ctx, r)
+	cleaner.Run(ctx, r, lh)
 	log.Printf("gRPC server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
@@ -188,7 +209,7 @@ func newFSMStore(myID string) (*bolt.DB, error) {
 	return fsmStore, nil
 }
 
-func newRaft(ctx context.Context, myID, myAddress string, fsm raft.FSM) (*raft.Raft, *transport.Manager, error) {
+func newRaft(myID string, myAddress string, fsm raft.FSM) (*raft.Raft, *transport.Manager, error) {
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(myID)
 

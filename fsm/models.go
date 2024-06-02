@@ -7,6 +7,7 @@ type LeaseHolderFSM struct {
 	DBAccessLayer *storage.DBAccessLayer
 }
 
+// noop snapshot as of now
 type snapshot struct{}
 
 // ResponseModel is the response from raft Apply
