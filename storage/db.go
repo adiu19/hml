@@ -173,7 +173,7 @@ func (dal *DBAccessLayer) SetObject(request *CreateLeaseParams) error {
 	})
 
 	if err != nil {
-		// TODO: add logs
+		log.Printf("unable to set key, error = %v", err)
 		return err
 	}
 

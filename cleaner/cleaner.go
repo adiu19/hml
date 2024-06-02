@@ -14,17 +14,22 @@ import (
 )
 
 // Run this method every 1 second
-// TODO : panic if this method stops or the underlying goroutine stops for some reason, retry first
 func Run(ctx context.Context, r *raft.Raft, f *fsm.LeaseHolderFSM) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("cleaner panicked with %v, recovery initiated", r)
+			}
+		}()
+
 		for range ticker.C {
 			now := time.Now().UnixMilli()
 			// fetch state of current node
-			// TODO: handle error
 			state, _ := raftadmin.Get(r).State(ctx, &proto.StateRequest{})
 			if raft.RaftState(state.GetState()) == raft.Leader {
-				log.Println("leader node running bg task")
+				log.Printf("leader running bg task")
+
 				leases, err := f.DBAccessLayer.GetAll()
 				if err != nil {
 					log.Printf("unable to fetch leases %v", err)

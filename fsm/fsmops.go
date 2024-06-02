@@ -3,10 +3,9 @@ package fsm
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	storage "hml/storage"
 	"io"
-	"os"
+	"log"
 
 	"github.com/hashicorp/raft"
 )
@@ -34,7 +33,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 	case raft.LogCommand:
 		var operationPayload OperationWrapper
 		if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+			log.Printf("error marshalling store payload %s\n", err.Error())
 			return &ResponseModel{
 				Error: err,
 				Data:  nil,
@@ -46,7 +45,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 		case SET:
 			operationPayload.Payload = &storage.CreateLeaseParams{}
 			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				log.Printf("error marshalling store payload %s\n", err.Error())
 				return &ResponseModel{
 					Error: err,
 					Data:  nil,
@@ -70,7 +69,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 		case DELETE:
 			operationPayload.Payload = &storage.LeaseKeyParams{}
 			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				log.Printf("error marshalling store payload %s\n", err.Error())
 				return nil
 			}
 
@@ -111,7 +110,7 @@ func (f *LeaseHolderFSM) Restore(rc io.ReadCloser) error {
 		case SET:
 			operationPayload.Payload = &storage.CreateLeaseParams{}
 			if err := decoder.Decode(&operationPayload); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				log.Printf("error marshalling store payload %s\n", err.Error())
 				return err
 			}
 
@@ -121,7 +120,7 @@ func (f *LeaseHolderFSM) Restore(rc io.ReadCloser) error {
 		case DELETE:
 			operationPayload.Payload = &storage.LeaseKeyParams{}
 			if err := decoder.Decode(&operationPayload); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
+				log.Printf("error marshalling store payload %s\n", err.Error())
 				return err
 			}
 

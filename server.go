@@ -43,6 +43,21 @@ func newServer() *leaseServer {
 }
 
 func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRequest) (*pb.CreateLeaseResponse, error) {
+	/*
+		-------------------------- Validations --------------------------
+	*/
+	if len(request.Key) == 0 {
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, "invalid key")
+	}
+
+	if len(request.Namespace) == 0 {
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, "invalid namespace")
+	}
+
+	if request.ExpiresAt.Seconds <= time.Now().Unix() {
+		return &pb.CreateLeaseResponse{}, status.Error(codes.Internal, "expiration timestamp is in the past")
+	}
+
 	payload := fsm.OperationWrapper{
 		Type: fsm.SET,
 		Payload: storage.CreateLeaseParams{
