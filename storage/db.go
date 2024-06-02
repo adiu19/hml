@@ -9,8 +9,13 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+// DBAccessLayer is a type alias to allow definitions
+type DBAccessLayer struct {
+	DB *bolt.DB
+}
+
 // GetObject returns a key value pair
-func (dal *DBAccessLayer) GetObject(request *GetLeaseModel) (*LeaseDBModel, error) {
+func (dal *DBAccessLayer) GetObject(request *LeaseKeyParams) (*LeaseProfile, error) {
 	key := request.Namespace + "_" + request.Key
 	data := []byte{}
 	err := dal.DB.View(func(tx *bolt.Tx) error {
@@ -33,7 +38,7 @@ func (dal *DBAccessLayer) GetObject(request *GetLeaseModel) (*LeaseDBModel, erro
 	}
 
 	if len(data) > 0 {
-		obj := LeaseDBModel{}
+		obj := LeaseProfile{}
 		err = json.Unmarshal(data, &obj)
 		if err != nil {
 			log.Printf("unmarshalling db value for key %v and value %v errored out %v", key, data, err)
@@ -46,7 +51,7 @@ func (dal *DBAccessLayer) GetObject(request *GetLeaseModel) (*LeaseDBModel, erro
 }
 
 // DeleteObject deletes a key value pair
-func (dal *DBAccessLayer) DeleteObject(request *GetLeaseModel) error {
+func (dal *DBAccessLayer) DeleteObject(request *LeaseKeyParams) error {
 	key := request.Namespace + "_" + request.Key
 	err := dal.DB.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte("conf"))
@@ -94,7 +99,7 @@ func (dal *DBAccessLayer) DeleteAll() error {
 }
 
 // GetAll returns a key value pair
-func (dal *DBAccessLayer) GetAll() ([]*LeaseDBModel, error) {
+func (dal *DBAccessLayer) GetAll() ([]*LeaseProfile, error) {
 	var data [][]byte
 	err := dal.DB.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("conf"))
@@ -116,10 +121,10 @@ func (dal *DBAccessLayer) GetAll() ([]*LeaseDBModel, error) {
 		return nil, err
 	}
 
-	var response []*LeaseDBModel
+	var response []*LeaseProfile
 
 	for _, byteArray := range data {
-		var leaseObj LeaseDBModel
+		var leaseObj LeaseProfile
 		if err := json.Unmarshal(byteArray, &leaseObj); err != nil {
 			fmt.Println("Error unmarshalling byte array:", err)
 			return nil, err
@@ -132,7 +137,7 @@ func (dal *DBAccessLayer) GetAll() ([]*LeaseDBModel, error) {
 }
 
 // SetObject sets a key value pair
-func (dal *DBAccessLayer) SetObject(request *CreateLeaseModel) error {
+func (dal *DBAccessLayer) SetObject(request *CreateLeaseParams) error {
 	key := request.Namespace + "_" + request.Key
 
 	err := dal.DB.Update(func(tx *bolt.Tx) error {
@@ -141,7 +146,7 @@ func (dal *DBAccessLayer) SetObject(request *CreateLeaseModel) error {
 			return errors.New("unable to create bucket")
 		}
 
-		data, internalErr := json.Marshal(LeaseDBModel{
+		data, internalErr := json.Marshal(LeaseProfile{
 			ClientID:             request.ClientID,
 			Namespace:            request.Namespace,
 			Key:                  request.Key,

@@ -38,7 +38,7 @@ func Run(ctx context.Context, r *raft.Raft, f *fsm.LeaseHolderFSM) {
 
 						payload := fsm.OperationWrapper{
 							Type: fsm.DELETE,
-							Payload: storage.GetLeaseModel{
+							Payload: storage.LeaseKeyParams{
 								Key:       lease.Key,
 								Namespace: lease.Namespace,
 							},

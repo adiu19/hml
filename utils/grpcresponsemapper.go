@@ -9,9 +9,9 @@ import (
 )
 
 /*
-MapObjectToGetLeaseResponse maps a lease DB object to protobuf response
+MapLeaseProfileToGetLeaseResponse maps a lease DB object to protobuf response
 */
-func MapObjectToGetLeaseResponse(lease *storage.LeaseDBModel) *pb.GetLeaseResponse {
+func MapLeaseProfileToGetLeaseResponse(lease *storage.LeaseProfile) *pb.GetLeaseResponse {
 	return &pb.GetLeaseResponse{
 		ClientId:     lease.ClientID,
 		Key:          lease.Key,

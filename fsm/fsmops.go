@@ -44,7 +44,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 		opType := operationPayload.Type
 		switch opType {
 		case SET:
-			operationPayload.Payload = &storage.CreateLeaseModel{}
+			operationPayload.Payload = &storage.CreateLeaseParams{}
 			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
 				return &ResponseModel{
@@ -53,7 +53,7 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 				}
 			}
 
-			req := operationPayload.Payload.(*storage.CreateLeaseModel)
+			req := operationPayload.Payload.(*storage.CreateLeaseParams)
 			err := f.DBAccessLayer.SetObject(req)
 			if err != nil {
 				// TODO: add logs
@@ -68,13 +68,13 @@ func (f *LeaseHolderFSM) Apply(l *raft.Log) interface{} {
 				Data:  nil,
 			}
 		case DELETE:
-			operationPayload.Payload = &storage.GetLeaseModel{}
+			operationPayload.Payload = &storage.LeaseKeyParams{}
 			if err := json.Unmarshal(l.Data, &operationPayload); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
 				return nil
 			}
 
-			req := operationPayload.Payload.(*storage.GetLeaseModel)
+			req := operationPayload.Payload.(*storage.LeaseKeyParams)
 			err := f.DBAccessLayer.DeleteObject(req)
 			if err != nil {
 				return &ResponseModel{
@@ -109,23 +109,23 @@ func (f *LeaseHolderFSM) Restore(rc io.ReadCloser) error {
 		opType := operationPayload.Type
 		switch opType {
 		case SET:
-			operationPayload.Payload = &storage.CreateLeaseModel{}
+			operationPayload.Payload = &storage.CreateLeaseParams{}
 			if err := decoder.Decode(&operationPayload); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
 				return err
 			}
 
-			req := operationPayload.Payload.(*storage.CreateLeaseModel)
+			req := operationPayload.Payload.(*storage.CreateLeaseParams)
 			err := f.DBAccessLayer.SetObject(req)
 			return err
 		case DELETE:
-			operationPayload.Payload = &storage.GetLeaseModel{}
+			operationPayload.Payload = &storage.LeaseKeyParams{}
 			if err := decoder.Decode(&operationPayload); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "error marshalling store payload %s\n", err.Error())
 				return err
 			}
 
-			req := operationPayload.Payload.(*storage.GetLeaseModel)
+			req := operationPayload.Payload.(*storage.LeaseKeyParams)
 			err := f.DBAccessLayer.DeleteObject(req)
 			return err
 		}

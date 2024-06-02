@@ -28,7 +28,6 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type leaseServer struct {
@@ -46,7 +45,7 @@ func newServer() *leaseServer {
 func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRequest) (*pb.CreateLeaseResponse, error) {
 	payload := fsm.OperationWrapper{
 		Type: fsm.SET,
-		Payload: storage.CreateLeaseModel{
+		Payload: storage.CreateLeaseParams{
 			ClientID:             request.ClientId,
 			Key:                  request.Key,
 			Namespace:            request.Namespace,
@@ -74,7 +73,7 @@ func (s *leaseServer) CreateLease(ctx context.Context, request *pb.CreateLeaseRe
 }
 
 func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest) (*pb.GetLeaseResponse, error) {
-	lease, err := s.fsm.DBAccessLayer.GetObject(&storage.GetLeaseModel{Key: request.Key, Namespace: request.Namespace})
+	lease, err := s.fsm.DBAccessLayer.GetObject(&storage.LeaseKeyParams{Key: request.Key, Namespace: request.Namespace})
 	if err != nil {
 		return &pb.GetLeaseResponse{}, status.Error(codes.Internal, err.Error())
 	}
@@ -83,17 +82,7 @@ func (s *leaseServer) GetLease(ctx context.Context, request *pb.GetLeaseRequest)
 		return nil, status.Error(codes.NotFound, "lease not found")
 	}
 
-	return utils.MapObjectToGetLeaseResponse(lease), nil
-	// return &pb.GetLeaseResponse{
-	// 	ClientId:     lease.ClientID,
-	// 	Key:          lease.Key,
-	// 	Namespace:    lease.Namespace,
-	// 	FencingToken: fmt.Sprint(lease.FencingToken),
-	// 	CreatedAt: &timestamppb.Timestamp{
-	// 		Seconds: lease.CreatedAtEpochMillis,
-	// 		Nanos:   0,
-	// 	},
-	// }, nil
+	return utils.MapLeaseProfileToGetLeaseResponse(lease), nil
 }
 
 func (s *leaseServer) GetAllLeases(ctx context.Context, request *emptypb.Empty) (*pb.GetAllLeasesResponse, error) {
@@ -104,18 +93,7 @@ func (s *leaseServer) GetAllLeases(ctx context.Context, request *emptypb.Empty) 
 
 	var mappedLeases []*pb.GetLeaseResponse
 	for _, lease := range leases {
-		t := pb.GetLeaseResponse{
-			ClientId:     lease.ClientID,
-			Key:          lease.Key,
-			Namespace:    lease.Namespace,
-			FencingToken: fmt.Sprint(lease.FencingToken),
-			CreatedAt: &timestamppb.Timestamp{
-				Seconds: lease.CreatedAtEpochMillis,
-				Nanos:   0,
-			},
-		}
-
-		mappedLeases = append(mappedLeases, &t)
+		mappedLeases = append(mappedLeases, utils.MapLeaseProfileToGetLeaseResponse(lease))
 	}
 
 	return &pb.GetAllLeasesResponse{
