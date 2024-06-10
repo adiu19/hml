@@ -147,7 +147,7 @@ func main() {
 
 	lh := newFSM()
 
-	r, tm, err := newRaft(*raftID, *myAddr, lh)
+	r, tm, err := newRaft(context.TODO(), *raftID, *myAddr, lh)
 	if err != nil {
 		log.Fatalf("failed to start raft: %v", err)
 	}
@@ -202,7 +202,7 @@ func newFSMStore(myID string) (*bolt.DB, error) {
 	return fsmStore, nil
 }
 
-func newRaft(myID string, myAddress string, fsm raft.FSM) (*raft.Raft, *transport.Manager, error) {
+func newRaft(ctx context.Context, myID string, myAddress string, fsm raft.FSM) (*raft.Raft, *transport.Manager, error) {
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(myID)
 

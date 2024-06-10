@@ -23,6 +23,7 @@ TODO:
 10. Organize models - which model belongs to db layer, which belongs to fsm layer [DONE]
 11. Look at TODOs
 12. Build this README
-13. Test Recovery on Panic
+13. Test Recovery on Panic [DONE]
 14. Validate requests to Create [DONE]
 15. Renew Flow
+16. License
